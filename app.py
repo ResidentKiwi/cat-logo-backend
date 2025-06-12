@@ -1,42 +1,56 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from supabase import create_client
 import os
-import supabase
+import uuid
 
 app = FastAPI()
 
-# CORS para permitir acesso do GitHub Pages
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Idealmente, especifique seu domínio exato
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Inicializa cliente Supabase
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-supabase_client = supabase.create_client(SUPABASE_URL, SUPABASE_KEY)
+SUPABASE_URL = os.environ["SUPABASE_URL"]
+SUPABASE_KEY = os.environ["SUPABASE_KEY"]
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+BUCKET = "imagens"
 
 class Canal(BaseModel):
     nome: str
     descricao: str
     url: str
-    imagem: str
+    imagem: str = None
 
 @app.get("/canais")
-def listar_canais():
-    res = supabase_client.table("canais").select("*").order("id", desc=True).execute()
-    return res.data
+def listar():
+    return supabase.table("canais").select("*").order("id", desc=True).execute().data
 
 @app.post("/canais")
-def adicionar_canal(canal: Canal):
-    res = supabase_client.table("canais").insert([canal.dict()]).execute()
-    return res.data
+def criar(canal: Canal):
+    return supabase.table("canais").insert(canal.dict()).execute().data
+
+@app.put("/canais/{canal_id}")
+def atualizar(canal_id: int, canal: dict):
+    return supabase.table("canais").update(canal).eq("id", canal_id).execute().data
+
+@app.delete("/canais/{canal_id}")
+def deletar(canal_id: int):
+    return supabase.table("canais").delete().eq("id", canal_id).execute().data
 
 @app.get("/admins/{user_id}")
 def verificar_admin(user_id: int):
-    res = supabase_client.table("admins").select("*").eq("id", user_id).execute()
-    return {"admin": len(res.data) > 0}
+    data = supabase.table("admins").select("*").eq("id", user_id).execute().data
+    return {"admin": len(data) > 0}
+
+@app.post("/upload")
+def upload(file: UploadFile = File(...)):
+    ext = file.filename.split(".")[-1]
+    file_id = f"{uuid.uuid4()}.{ext}"
+    supabase.storage.from_(BUCKET).upload(file_id, file.file, {"content-type": file.content_type})
+    url = supabase.storage.from_(BUCKET).get_public_url(file_id)
+    return {"url": url}
