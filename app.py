@@ -6,18 +6,15 @@ import time
 import io
 from supabase import create_client
 
-# Carregar variáveis de ambiente (sem fallback, obrigatório no Render)
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("Variáveis SUPABASE_URL e SUPABASE_KEY devem estar definidas.")
 
-# Inicializar cliente Supabase
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = FastAPI()
 
-# CORS (ajustar domínio do frontend em produção)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,17 +31,17 @@ async def get_admins():
     return [row.get("id") for row in res.data]
 
 class Channel(BaseModel):
-    name: str
-    description: str
-    link: str
-    image: str
+    nome: str
+    descricao: str
+    url: str
+    imagem: str
     user_id: int
 
 class ChannelUpdate(BaseModel):
-    name: str
-    description: str
-    link: str
-    image: str
+    nome: str
+    descricao: str
+    url: str
+    imagem: str
     user_id: int
 
 @app.get("/channels")
@@ -65,7 +62,6 @@ async def get_channel(channel_id: int):
 
 @app.post("/channels")
 async def add_channel(channel: Channel):
-    # Verifica se user_id é admin
     res_admin = supabase.table("admins").select("id").eq("id", channel.user_id).execute()
     if res_admin.error:
         raise HTTPException(status_code=500, detail=f"Erro ao verificar admin: {res_admin.error}")
@@ -73,10 +69,10 @@ async def add_channel(channel: Channel):
         raise HTTPException(status_code=403, detail="Usuário não autorizado")
     try:
         res = supabase.table("channels").insert({
-            "name": channel.name,
-            "description": channel.description,
-            "link": channel.link,
-            "image": channel.image
+            "nome": channel.nome,
+            "descricao": channel.descricao,
+            "url": channel.url,
+            "imagem": channel.imagem
         }).execute()
         if res.error:
             raise Exception(res.error)
@@ -93,10 +89,10 @@ async def update_channel(channel_id: int, channel: ChannelUpdate):
         raise HTTPException(status_code=403, detail="Usuário não autorizado")
     try:
         res = supabase.table("channels").update({
-            "name": channel.name,
-            "description": channel.description,
-            "link": channel.link,
-            "image": channel.image
+            "nome": channel.nome,
+            "descricao": channel.descricao,
+            "url": channel.url,
+            "imagem": channel.imagem
         }).eq("id", channel_id).execute()
         if res.error:
             raise Exception(res.error)
