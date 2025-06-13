@@ -1,84 +1,31 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from supabase import create_client
+from dotenv import load_dotenv
 import os
 import uuid
 
+load_dotenv()
+
 app = FastAPI()
 
-# Libera CORS para qualquer origem (útil para front-end externo como GitHub Pages)
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Variáveis de ambiente (devem estar configuradas no Render)
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-BUCKET = "canais"  # Corrigido para o nome real do bucket
-
-# Verifica se variáveis estão presentes
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise RuntimeError("SUPABASE_URL ou SUPABASE_KEY não configurados!")
+# Supabase
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+BUCKET = "canais"
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Modelo de canal
-class Canal(BaseModel):
-    nome: str
-    descricao: str
-    url: str
-    imagem: str = None
-
-# Listar canais
-@app.get("/canais")
-def listar():
-    try:
-        result = supabase.table("canais").select("*").order("id", desc=True).execute()
-        return result.data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Criar canal
-@app.post("/canais")
-def criar(canal: Canal):
-    try:
-        result = supabase.table("canais").insert(canal.dict()).execute()
-        return result.data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Atualizar canal
-@app.put("/canais/{canal_id}")
-def atualizar(canal_id: int, canal: Canal):
-    try:
-        result = supabase.table("canais").update(canal.dict(exclude_unset=True)).eq("id", canal_id).execute()
-        return result.data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Excluir canal
-@app.delete("/canais/{canal_id}")
-def deletar(canal_id: int):
-    try:
-        result = supabase.table("canais").delete().eq("id", canal_id).execute()
-        return result.data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Verificar se é admin
-@app.get("/admins/{user_id}")
-def verificar_admin(user_id: int):
-    try:
-        data = supabase.table("admins").select("*").eq("id", user_id).execute().data
-        return {"admin": len(data) > 0}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Upload de imagem para o Supabase Storage
+# Rota de upload de imagem
 @app.post("/upload")
 def upload(file: UploadFile = File(...)):
     try:
@@ -90,16 +37,28 @@ def upload(file: UploadFile = File(...)):
         file_id = f"{uuid.uuid4()}.{ext}"
         content_type = file.content_type or "image/jpeg"
 
-        # Upload
-        response = supabase.storage.from_(BUCKET).upload(file_id, file.file, {"content-type": content_type})
+        # Lê o conteúdo do arquivo em bytes
+        conteudo = file.file.read()
 
-        # Verifica erro do Supabase
+        # Faz upload no Supabase Storage
+        response = supabase.storage.from_(BUCKET).upload(
+            file_id,
+            conteudo,
+            {"content-type": content_type},
+            upsert=True  # Permite sobrescrever se necessário
+        )
+
         if hasattr(response, "error") and response.error:
             raise HTTPException(status_code=500, detail=f"Erro no upload: {response.error}")
 
-        # URL pública
+        # Gera URL pública
         url = supabase.storage.from_(BUCKET).get_public_url(file_id)
         return {"url": url}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro inesperado: {str(e)}")
+
+# Exemplo de rota básica para testes
+@app.get("/")
+def read_root():
+    return {"status": "API no ar"}
