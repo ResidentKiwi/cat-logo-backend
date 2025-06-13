@@ -1,82 +1,130 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi import FastAPI, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from supabase import create_client, Client
-import uuid
 import os
+import time
+import io
+from supabase import create_client, SupabaseClient
+
+# ⛓️ Verifica variáveis de ambiente obrigatórias
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError("As variáveis SUPABASE_URL e SUPABASE_KEY devem estar definidas.")
+
+# 🔗 Conecta ao Supabase
+supabase: SupabaseClient = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = FastAPI()
 
-# CORS
+# 🔓 CORS liberado para facilitar testes e integração com GitHub Pages
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://residentkiwi.github.io"], # ou especifique seu domínio exato
+    allow_origins=["*"],  # Em produção, idealmente especifique os domínios permitidos
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Supabase
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-BUCKET = "canais"
+# 📋 Modelo de canal
+class Channel(BaseModel):
+    name: str
+    description: str
+    link: str
+    image: str
+    user_id: int
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+class ChannelUpdate(BaseModel):
+    name: str
+    description: str
+    link: str
+    image: str
+    user_id: int
 
-# Models
-class Canal(BaseModel):
-    nome: str
-    descricao: str
-    url: str
-    imagem: str = None
+# 🔐 Verifica se o usuário é admin
+@app.get("/admins")
+async def get_admins():
+    res = supabase.table("admins").select("id").execute()
+    if res.error:
+        raise HTTPException(status_code=500, detail=f"Erro ao obter admins: {res.error}")
+    return [row.get("id") for row in res.data]
 
-@app.get("/canais")
-async def listar_canais():
-    try:
-        data = supabase.table("canais").select("*").execute()
-        return data.data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# 📚 Lista todos os canais
+@app.get("/channels")
+async def get_channels():
+    res = supabase.table("channels").select("*").execute()
+    if res.error:
+        raise HTTPException(status_code=500, detail=f"Erro ao obter canais: {res.error}")
+    return res.data
 
-@app.post("/canais")
-async def adicionar_canal(canal: Canal):
-    try:
-        res = supabase.table("canais").insert(canal.dict()).execute()
-        return res.data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# 🔎 Pega um canal pelo ID
+@app.get("/channels/{channel_id}")
+async def get_channel(channel_id: int):
+    res = supabase.table("channels").select("*").eq("id", channel_id).execute()
+    if res.error:
+        raise HTTPException(status_code=500, detail=f"Erro ao obter canal: {res.error}")
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Canal não encontrado")
+    return res.data[0]
 
-@app.put("/canais/{id}")
-async def editar_canal(id: int, canal: Canal):
-    try:
-        res = supabase.table("canais").update(canal.dict()).eq("id", id).execute()
-        return res.data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# ➕ Cria novo canal
+@app.post("/channels")
+async def add_channel(channel: Channel):
+    # Verifica se é admin
+    res_admin = supabase.table("admins").select("id").eq("id", channel.user_id).execute()
+    if not res_admin.data:
+        raise HTTPException(status_code=403, detail="Usuário não autorizado")
+    # Insere canal
+    res = supabase.table("channels").insert({
+        "name": channel.name,
+        "description": channel.description,
+        "link": channel.link,
+        "image": channel.image
+    }).execute()
+    if res.error:
+        raise HTTPException(status_code=500, detail=f"Erro ao criar canal: {res.error}")
+    return res.data[0]
 
-@app.delete("/canais/{id}")
-async def excluir_canal(id: int):
-    try:
-        supabase.table("canais").delete().eq("id", id).execute()
-        return {"message": "Canal excluído com sucesso."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# ✏️ Atualiza canal
+@app.put("/channels/{channel_id}")
+async def update_channel(channel_id: int, channel: ChannelUpdate):
+    res_admin = supabase.table("admins").select("id").eq("id", channel.user_id).execute()
+    if not res_admin.data:
+        raise HTTPException(status_code=403, detail="Usuário não autorizado")
+    res = supabase.table("channels").update({
+        "name": channel.name,
+        "description": channel.description,
+        "link": channel.link,
+        "image": channel.image
+    }).eq("id", channel_id).execute()
+    if res.error:
+        raise HTTPException(status_code=500, detail=f"Erro ao atualizar canal: {res.error}")
+    return res.data[0]
 
-@app.get("/admins/{user_id}")
-def verificar_admin(user_id: int):
-    response = supabase.table("admins").select("id").eq("id", user_id).execute()
-    return {"admin": len(response.data) > 0}
-    
+# ❌ Exclui canal
+@app.delete("/channels/{channel_id}")
+async def delete_channel(channel_id: int, user_id: int = Query(...)):
+    res_admin = supabase.table("admins").select("id").eq("id", user_id).execute()
+    if not res_admin.data:
+        raise HTTPException(status_code=403, detail="Usuário não autorizado")
+    res = supabase.table("channels").delete().eq("id", channel_id).execute()
+    if res.error:
+        raise HTTPException(status_code=500, detail=f"Erro ao excluir canal: {res.error}")
+    return {"detail": "Canal excluído com sucesso"}
+
+# 📤 Upload de imagem para Supabase Storage
 @app.post("/upload")
 async def upload_image(file: UploadFile = File(...)):
     try:
-        file_ext = os.path.splitext(file.filename)[1]
-        filename = f"{uuid.uuid4()}{file_ext}"
-        file_content = await file.read()
-        res = supabase.storage.from_(BUCKET).upload(filename, file_content)
-        if hasattr(res, "status_code") and res.status_code != 200:
-            raise HTTPException(status_code=500, detail=f"Erro ao fazer upload: {res}")
-        public_url = supabase.storage.from_(BUCKET).get_public_url(filename)
+        content = await file.read()
+        file_name = f"channels/{int(time.time())}_{file.filename}"
+        upload_res = supabase.storage.from_("canais").upload(
+            file=io.BytesIO(content),
+            path=file_name
+        )
+        if isinstance(upload_res, dict) and upload_res.get("error"):
+            raise Exception(upload_res["error"])
+        public_url = supabase.storage.from_("canais").get_public_url(file_name).get("publicURL")
         return {"url": public_url}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro no upload: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro no upload da imagem: {str(e)}")
