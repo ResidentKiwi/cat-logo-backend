@@ -52,25 +52,27 @@ async def get_canais():
         return res.data
     except Exception as e:
         raise HTTPException(500, f"Erro ao obter canais: {e}")
-
 @app.post("/canais")
 async def adicionar_canal(canal: Canal):
     try:
+        print("Recebido POST /canais:", canal)
         admin_check = supabase.table("admins").select("id").eq("id", canal.user_id).execute()
         if not admin_check.data:
             raise HTTPException(403, "Usuário não autorizado")
-        res = supabase.table("canais").insert({
+        data = {
             "nome": canal.nome,
             "url": canal.url,
-            "descricao": canal.descricao,
+            "descricao": canal.descricao or "",
             "imagem": canal.imagem
-        }).execute()
+        }
+        print("Dados para inserir:", data)
+        res = supabase.table("canais").insert(data).execute()
         return res.data[0]
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(500, f"Erro ao criar canal: {e}")
-
+        
 @app.put("/canais/{canal_id}")
 async def atualizar_canal(canal_id: int, canal: CanalUpdate):
     try:
