@@ -18,7 +18,7 @@ app.add_middleware(
 # Variáveis de ambiente (devem estar configuradas no Render)
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-BUCKET = "imagens"
+BUCKET = "canais"  # Corrigido para o nome real do bucket
 
 # Verifica se variáveis estão presentes
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -82,15 +82,24 @@ def verificar_admin(user_id: int):
 @app.post("/upload")
 def upload(file: UploadFile = File(...)):
     try:
-        ext = file.filename.split(".")[-1]
-        file_id = f"{uuid.uuid4()}.{ext}"
-        content_type = file.content_type
+        # Verifica extensão permitida
+        ext = file.filename.split(".")[-1].lower()
+        if ext not in ["jpg", "jpeg", "png", "webp"]:
+            raise HTTPException(status_code=400, detail="Formato de imagem não suportado.")
 
-        # Upload da imagem
-        supabase.storage.from_(BUCKET).upload(file_id, file.file, {"content-type": content_type})
+        file_id = f"{uuid.uuid4()}.{ext}"
+        content_type = file.content_type or "image/jpeg"
+
+        # Upload
+        response = supabase.storage.from_(BUCKET).upload(file_id, file.file, {"content-type": content_type})
+
+        # Verifica erro do Supabase
+        if hasattr(response, "error") and response.error:
+            raise HTTPException(status_code=500, detail=f"Erro no upload: {response.error}")
 
         # URL pública
         url = supabase.storage.from_(BUCKET).get_public_url(file_id)
         return {"url": url}
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Erro inesperado: {str(e)}")
