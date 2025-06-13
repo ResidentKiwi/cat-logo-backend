@@ -63,13 +63,10 @@ async def excluir_canal(id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/admins/{user_id}")
-async def verificar_admin(user_id: int):
-    try:
-        res = supabase.table("admins").select("*").eq("user_id", user_id).execute()
-        return {"admin": len(res.data) > 0}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
+def verificar_admin(user_id: int):
+    response = supabase.table("admins").select("id").eq("id", user_id).execute()
+    return {"admin": len(response.data) > 0}
+    
 @app.post("/upload")
 async def upload_image(file: UploadFile = File(...)):
     try:
