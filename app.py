@@ -20,16 +20,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Modelos
+# Modelos atualizados
 class Canal(BaseModel):
     nome: str
     url: str
+    descricao: str | None = None
     imagem: str
     user_id: int
 
 class CanalUpdate(BaseModel):
     nome: str
     url: str
+    descricao: str | None = None
     imagem: str
     user_id: int
 
@@ -60,6 +62,7 @@ async def adicionar_canal(canal: Canal):
         res = supabase.table("canais").insert({
             "nome": canal.nome,
             "url": canal.url,
+            "descricao": canal.descricao,
             "imagem": canal.imagem
         }).execute()
         return res.data[0]
@@ -77,6 +80,7 @@ async def atualizar_canal(canal_id: int, canal: CanalUpdate):
         res = supabase.table("canais").update({
             "nome": canal.nome,
             "url": canal.url,
+            "descricao": canal.descricao,
             "imagem": canal.imagem
         }).eq("id", canal_id).execute()
         return res.data[0]
