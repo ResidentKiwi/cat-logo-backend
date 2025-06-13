@@ -10,7 +10,7 @@ app = FastAPI()
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ou especifique seu domínio exato
+    allow_origins=["https://residentkiwi.github.io"], # ou especifique seu domínio exato
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
