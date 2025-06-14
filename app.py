@@ -36,8 +36,25 @@ class CanalUpdate(BaseModel):
     imagem: str
     user_id: int
 
-# Rotas existentes (admins, canais) permanecem iguais, apenas logs inseridos
+# ✅ Reimplementado: rota GET /admins
+@app.get("/admins")
+async def get_admins():
+    try:
+        res = supabase.table("admins").select("id").execute()
+        return [r["id"] for r in res.data]
+    except Exception as e:
+        raise HTTPException(500, f"Erro ao obter admins: {e}")
 
+# ✅ Reimplementado: rota GET /canais
+@app.get("/canais")
+async def get_canais():
+    try:
+        res = supabase.table("canais").select("*").execute()
+        return res.data
+    except Exception as e:
+        raise HTTPException(500, f"Erro ao obter canais: {e}")
+
+# POST: Adicionar canal
 @app.post("/canais")
 async def adicionar_canal(canal: Canal):
     try:
@@ -63,6 +80,7 @@ async def adicionar_canal(canal: Canal):
     except Exception as e:
         raise HTTPException(500, f"Erro ao criar canal: {e}")
 
+# PUT: Atualizar canal
 @app.put("/canais/{canal_id}")
 async def atualizar_canal(canal_id: int, canal: CanalUpdate):
     try:
@@ -86,6 +104,7 @@ async def atualizar_canal(canal_id: int, canal: CanalUpdate):
     except Exception as e:
         raise HTTPException(500, f"Erro ao atualizar canal: {e}")
 
+# DELETE: Excluir canal
 @app.delete("/canais/{canal_id}")
 async def excluir_canal(canal_id: int, user_id: int = Query(...)):
     try:
@@ -104,6 +123,7 @@ async def excluir_canal(canal_id: int, user_id: int = Query(...)):
     except Exception as e:
         raise HTTPException(500, f"Erro ao excluir canal: {e}")
 
+# POST: Upload de imagem
 @app.post("/upload")
 async def upload_imagem(file: UploadFile = File(...)):
     try:
@@ -111,18 +131,21 @@ async def upload_imagem(file: UploadFile = File(...)):
         if not content:
             raise Exception("Arquivo está vazio")
         path = f"canais/{int(time.time())}_{file.filename}"
-        supabase.storage.from_("canais").upload(path=path, file=content,
-            file_options={"content-type": file.content_type})
+        supabase.storage.from_("canais").upload(
+            path=path,
+            file=content,
+            file_options={"content-type": file.content_type}
+        )
         public_url = supabase.storage.from_("canais").get_public_url(path)
         return {"url": public_url.get("publicURL") or public_url.get("publicUrl")}
     except Exception as e:
         raise HTTPException(500, f"Erro no upload da imagem: {e}")
 
-# Novo endpoint para logs
+# ✅ Atualizado: logs filtrados por user_id
 @app.get("/admin_logs")
 async def get_logs(user_id: int = Query(...)):
     try:
-        res = supabase.table("admin_logs").select("*").execute()
+        res = supabase.table("admin_logs").select("*").eq("admin_id", user_id).order("timestamp", desc=True).execute()
         return res.data
     except Exception as e:
         raise HTTPException(500, f"Erro ao obter logs: {e}")
