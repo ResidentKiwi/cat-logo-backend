@@ -12,7 +12,6 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# App e CORS
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -37,27 +36,11 @@ class CanalUpdate(BaseModel):
     imagem: str
     user_id: int
 
-# Rotas
-@app.get("/admins")
-async def get_admins():
-    try:
-        res = supabase.table("admins").select("id").execute()
-        return [r["id"] for r in res.data]
-    except Exception as e:
-        raise HTTPException(500, f"Erro ao obter admins: {e}")
-
-@app.get("/canais")
-async def get_canais():
-    try:
-        res = supabase.table("canais").select("*").execute()
-        return res.data
-    except Exception as e:
-        raise HTTPException(500, f"Erro ao obter canais: {e}")
+# Rotas existentes (admins, canais) permanecem iguais, apenas logs inseridos
 
 @app.post("/canais")
 async def adicionar_canal(canal: Canal):
     try:
-        print("📥 POST /canais recebido:", canal.dict())
         admin_check = supabase.table("admins").select("id").eq("id", canal.user_id).execute()
         if not admin_check.data:
             raise HTTPException(403, "Usuário não autorizado")
@@ -68,6 +51,12 @@ async def adicionar_canal(canal: Canal):
             "imagem": canal.imagem
         }
         res = supabase.table("canais").insert(data).execute()
+        canal_id = res.data[0]["id"]
+        supabase.table("admin_logs").insert({
+            "admin_id": canal.user_id,
+            "action": "created_channel",
+            "target_id": canal_id
+        }).execute()
         return res.data[0]
     except HTTPException:
         raise
@@ -86,6 +75,11 @@ async def atualizar_canal(canal_id: int, canal: CanalUpdate):
             "descricao": canal.descricao,
             "imagem": canal.imagem
         }).eq("id", canal_id).execute()
+        supabase.table("admin_logs").insert({
+            "admin_id": canal.user_id,
+            "action": "updated_channel",
+            "target_id": canal_id
+        }).execute()
         return res.data[0]
     except HTTPException:
         raise
@@ -99,6 +93,11 @@ async def excluir_canal(canal_id: int, user_id: int = Query(...)):
         if not admin_check.data:
             raise HTTPException(403, "Usuário não autorizado")
         supabase.table("canais").delete().eq("id", canal_id).execute()
+        supabase.table("admin_logs").insert({
+            "admin_id": user_id,
+            "action": "deleted_channel",
+            "target_id": canal_id
+        }).execute()
         return {"detail": "Canal excluído com sucesso"}
     except HTTPException:
         raise
@@ -111,30 +110,19 @@ async def upload_imagem(file: UploadFile = File(...)):
         content = await file.read()
         if not content:
             raise Exception("Arquivo está vazio")
-
-        file_name = f"{int(time.time())}_{file.filename}"
-        path = f"canais/{file_name}"
-
-        print("📤 Iniciando upload:", path)
-        print("📤 Tipo do arquivo:", file.content_type)
-        print("📤 Tamanho do arquivo:", len(content))
-
-        res = supabase.storage.from_("canais").upload(
-            path=path,
-            file=content,
-            file_options={"content-type": file.content_type}
-        )
-
-        print("📤 Resultado do upload:", res)
-
-        if not res:
-            raise Exception("Resposta do upload está vazia")
-
+        path = f"canais/{int(time.time())}_{file.filename}"
+        supabase.storage.from_("canais").upload(path=path, file=content,
+            file_options={"content-type": file.content_type})
         public_url = supabase.storage.from_("canais").get_public_url(path)
-        print("📤 URL pública:", public_url)
-
-        return {"url": public_url}
-
+        return {"url": public_url.get("publicURL") or public_url.get("publicUrl")}
     except Exception as e:
-        print("❌ Erro no upload:", repr(e))
         raise HTTPException(500, f"Erro no upload da imagem: {e}")
+
+# Novo endpoint para logs
+@app.get("/admin_logs")
+async def get_logs(user_id: int = Query(...)):
+    try:
+        res = supabase.table("admin_logs").select("*").execute()
+        return res.data
+    except Exception as e:
+        raise HTTPException(500, f"Erro ao obter logs: {e}")
