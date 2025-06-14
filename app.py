@@ -42,6 +42,14 @@ async def get_admins():
     except Exception as e:
         raise HTTPException(500, f"Erro ao obter admins: {e}")
 
+@app.get("/devs")
+async def get_devs():
+    try:
+        res = supabase.table("devs").select("id").execute()
+        return [r["id"] for r in res.data]
+    except Exception as e:
+        raise HTTPException(500, f"Erro ao obter devs: {e}")
+
 @app.get("/canais")
 async def get_canais():
     try:
@@ -56,12 +64,7 @@ async def adicionar_canal(canal: Canal):
         admin_check = supabase.table("admins").select("id").eq("id", canal.user_id).execute()
         if not admin_check.data:
             raise HTTPException(403, "Usuário não autorizado")
-        data = {
-            "nome": canal.nome,
-            "url": canal.url,
-            "descricao": canal.descricao or "",
-            "imagem": canal.imagem
-        }
+        data = {"nome": canal.nome, "url": canal.url, "descricao": canal.descricao or "", "imagem": canal.imagem}
         res = supabase.table("canais").insert(data).execute()
         canal_id = res.data[0]["id"]
         supabase.table("admin_logs").insert({
@@ -136,7 +139,11 @@ async def upload_imagem(file: UploadFile = File(...)):
 @app.get("/admin_logs")
 async def get_logs(user_id: int = Query(...)):
     try:
-        res = supabase.table("admin_logs").select("*").eq("admin_id", user_id).order("timestamp", desc=True).execute()
+        res = supabase.table("admin_logs") \
+            .select("*") \
+            .eq("admin_id", user_id) \
+            .order("timestamp", desc=True) \
+            .execute()
         return res.data
     except Exception as e:
         raise HTTPException(500, f"Erro ao obter logs: {e}")
