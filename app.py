@@ -1,14 +1,14 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import os, time, io
+import os, time
 from supabase import create_client
 
-# Configuração Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("Variáveis SUPABASE_URL e SUPABASE_KEY devem estar definidas.")
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = FastAPI()
@@ -20,7 +20,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Modelos atualizados
 class Canal(BaseModel):
     nome: str
     url: str
@@ -34,8 +33,6 @@ class CanalUpdate(BaseModel):
     descricao: str | None = None
     imagem: str
     user_id: int
-
-# Rotas
 
 @app.get("/admins")
 async def get_admins():
@@ -52,10 +49,11 @@ async def get_canais():
         return res.data
     except Exception as e:
         raise HTTPException(500, f"Erro ao obter canais: {e}")
+
 @app.post("/canais")
 async def adicionar_canal(canal: Canal):
     try:
-        print("Recebido POST /canais:", canal)
+        print("📥 POST /canais recebido:", canal.dict())
         admin_check = supabase.table("admins").select("id").eq("id", canal.user_id).execute()
         if not admin_check.data:
             raise HTTPException(403, "Usuário não autorizado")
@@ -65,14 +63,13 @@ async def adicionar_canal(canal: Canal):
             "descricao": canal.descricao or "",
             "imagem": canal.imagem
         }
-        print("Dados para inserir:", data)
         res = supabase.table("canais").insert(data).execute()
         return res.data[0]
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(500, f"Erro ao criar canal: {e}")
-        
+
 @app.put("/canais/{canal_id}")
 async def atualizar_canal(canal_id: int, canal: CanalUpdate):
     try:
@@ -109,7 +106,7 @@ async def upload_imagem(file: UploadFile = File(...)):
     try:
         content = await file.read()
         file_name = f"canais/{int(time.time())}_{file.filename}"
-        supabase.storage.from_("canais").upload(io.BytesIO(content), path=file_name)
+        supabase.storage.from_("canais").upload(file_name, content)  # ✅ Correção aqui
         public_res = supabase.storage.from_("canais").get_public_url(file_name)
         url = public_res.get("publicURL") or public_res.get("publicUrl")
         return {"url": url}
