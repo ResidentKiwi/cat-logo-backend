@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import os, time
 from supabase import create_client
 
+# Configuração Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -11,6 +12,7 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# App e CORS
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -20,6 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Modelos
 class Canal(BaseModel):
     nome: str
     url: str
@@ -34,6 +37,7 @@ class CanalUpdate(BaseModel):
     imagem: str
     user_id: int
 
+# Rotas
 @app.get("/admins")
 async def get_admins():
     try:
@@ -129,7 +133,7 @@ async def upload_imagem(file: UploadFile = File(...)):
         public_url = supabase.storage.from_("canais").get_public_url(path)
         print("📤 URL pública:", public_url)
 
-        return {"url": public_url.get("publicURL") or public_url.get("publicUrl")}
+        return {"url": public_url}
 
     except Exception as e:
         print("❌ Erro no upload:", repr(e))
