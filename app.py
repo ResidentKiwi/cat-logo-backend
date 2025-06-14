@@ -105,17 +105,32 @@ async def excluir_canal(canal_id: int, user_id: int = Query(...)):
 async def upload_imagem(file: UploadFile = File(...)):
     try:
         content = await file.read()
+        if not content:
+            raise Exception("Arquivo está vazio")
+
         file_name = f"{int(time.time())}_{file.filename}"
         path = f"canais/{file_name}"
 
-        # Correção aplicada: upload usando apenas path e conteúdo
-        res = supabase.storage.from_("canais").upload(path, content)
+        print("📤 Iniciando upload:", path)
+        print("📤 Tipo do arquivo:", file.content_type)
+        print("📤 Tamanho do arquivo:", len(content))
+
+        res = supabase.storage.from_("canais").upload(
+            path=path,
+            file=content,
+            file_options={"content-type": file.content_type}
+        )
+
+        print("📤 Resultado do upload:", res)
 
         if not res:
-            raise Exception("Erro desconhecido ao fazer upload.")
+            raise Exception("Resposta do upload está vazia")
 
         public_url = supabase.storage.from_("canais").get_public_url(path)
+        print("📤 URL pública:", public_url)
+
         return {"url": public_url.get("publicURL") or public_url.get("publicUrl")}
 
     except Exception as e:
+        print("❌ Erro no upload:", repr(e))
         raise HTTPException(500, f"Erro no upload da imagem: {e}")
