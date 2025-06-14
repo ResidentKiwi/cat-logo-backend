@@ -4,7 +4,6 @@ from pydantic import BaseModel
 import os, time
 from supabase import create_client
 
-# Configuração Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -21,7 +20,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Modelos
 class Canal(BaseModel):
     nome: str
     url: str
@@ -36,7 +34,6 @@ class CanalUpdate(BaseModel):
     imagem: str
     user_id: int
 
-# ✅ Reimplementado: rota GET /admins
 @app.get("/admins")
 async def get_admins():
     try:
@@ -45,7 +42,6 @@ async def get_admins():
     except Exception as e:
         raise HTTPException(500, f"Erro ao obter admins: {e}")
 
-# ✅ Reimplementado: rota GET /canais
 @app.get("/canais")
 async def get_canais():
     try:
@@ -54,7 +50,6 @@ async def get_canais():
     except Exception as e:
         raise HTTPException(500, f"Erro ao obter canais: {e}")
 
-# POST: Adicionar canal
 @app.post("/canais")
 async def adicionar_canal(canal: Canal):
     try:
@@ -80,7 +75,6 @@ async def adicionar_canal(canal: Canal):
     except Exception as e:
         raise HTTPException(500, f"Erro ao criar canal: {e}")
 
-# PUT: Atualizar canal
 @app.put("/canais/{canal_id}")
 async def atualizar_canal(canal_id: int, canal: CanalUpdate):
     try:
@@ -104,7 +98,6 @@ async def atualizar_canal(canal_id: int, canal: CanalUpdate):
     except Exception as e:
         raise HTTPException(500, f"Erro ao atualizar canal: {e}")
 
-# DELETE: Excluir canal
 @app.delete("/canais/{canal_id}")
 async def excluir_canal(canal_id: int, user_id: int = Query(...)):
     try:
@@ -123,7 +116,6 @@ async def excluir_canal(canal_id: int, user_id: int = Query(...)):
     except Exception as e:
         raise HTTPException(500, f"Erro ao excluir canal: {e}")
 
-# POST: Upload de imagem
 @app.post("/upload")
 async def upload_imagem(file: UploadFile = File(...)):
     try:
@@ -141,7 +133,6 @@ async def upload_imagem(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(500, f"Erro no upload da imagem: {e}")
 
-# ✅ Atualizado: logs filtrados por user_id
 @app.get("/admin_logs")
 async def get_logs(user_id: int = Query(...)):
     try:
