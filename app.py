@@ -4,17 +4,15 @@ from pydantic import BaseModel
 import os, time
 from supabase import create_client
 
-# Configuração Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-DEV_ID = 5185766186  # Seu ID fixo como desenvolvedor
+DEV_ID = 5185766186
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("Variáveis SUPABASE_URL e SUPABASE_KEY devem estar definidas.")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# App e CORS
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -24,14 +22,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Utilitário: Verificação de admin ou dev
 def is_manage(user_id: int) -> bool:
     if user_id == DEV_ID:
         return True
     admins = supabase.table("admins").select("id").execute().data
     return any(r["id"] == user_id for r in admins)
 
-# Modelos
 class Canal(BaseModel):
     nome: str
     url: str
@@ -42,7 +38,6 @@ class Canal(BaseModel):
 class CanalUpdate(Canal):
     pass
 
-# Listar admins (usado também no painel dev)
 @app.get("/admins")
 async def get_admins():
     try:
@@ -51,7 +46,6 @@ async def get_admins():
     except Exception as e:
         raise HTTPException(500, f"Erro ao obter admins: {e}")
 
-# Canais
 @app.get("/canais")
 async def get_canais():
     try:
@@ -116,7 +110,6 @@ async def excluir_canal(canal_id: int, user_id: int = Query(...)):
     except Exception as e:
         raise HTTPException(500, f"Erro ao excluir canal: {e}")
 
-# Upload de imagem
 @app.post("/upload")
 async def upload_imagem(file: UploadFile = File(...)):
     try:
@@ -134,7 +127,6 @@ async def upload_imagem(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(500, f"Erro no upload da imagem: {e}")
 
-# Logs dos admins
 @app.get("/admin_logs")
 async def get_logs(user_id: int = Query(...)):
     if not is_manage(user_id):
@@ -145,7 +137,6 @@ async def get_logs(user_id: int = Query(...)):
     except Exception as e:
         raise HTTPException(500, f"Erro ao obter logs: {e}")
 
-# Gerenciamento de admins (dev only)
 @app.get("/dev/admins")
 async def list_admins_dev(user_id: int = Query(...)):
     if user_id != DEV_ID:
