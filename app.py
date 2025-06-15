@@ -4,9 +4,10 @@ from pydantic import BaseModel
 import os, time
 from supabase import create_client
 
+# Configuração Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-DEV_ID = 5185766186
+DEV_ID = 5185766186  # Seu ID fixo como desenvolvedor
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("Variáveis SUPABASE_URL e SUPABASE_KEY devem estar definidas.")
@@ -22,12 +23,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Utilitário: Verifica se o user é admin ou dev
 def is_manage(user_id: int) -> bool:
     if user_id == DEV_ID:
         return True
-    admins = supabase.table("admins").select("id").execute().data
+    admins = supabase.table("admins").select("id").execute().data or []
     return any(r["id"] == user_id for r in admins)
 
+# Modelos
 class Canal(BaseModel):
     nome: str
     url: str
@@ -38,6 +41,7 @@ class Canal(BaseModel):
 class CanalUpdate(Canal):
     pass
 
+# Rotas básicas
 @app.get("/admins")
 async def get_admins():
     try:
@@ -54,6 +58,7 @@ async def get_canais():
     except Exception as e:
         raise HTTPException(500, f"Erro ao obter canais: {e}")
 
+# CRUD de canais com logs
 @app.post("/canais")
 async def adicionar_canal(canal: Canal):
     if not is_manage(canal.user_id):
@@ -110,6 +115,7 @@ async def excluir_canal(canal_id: int, user_id: int = Query(...)):
     except Exception as e:
         raise HTTPException(500, f"Erro ao excluir canal: {e}")
 
+# Upload de imagem
 @app.post("/upload")
 async def upload_imagem(file: UploadFile = File(...)):
     try:
@@ -127,9 +133,10 @@ async def upload_imagem(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(500, f"Erro no upload da imagem: {e}")
 
+# Logs — somente você (dev) pode acessar
 @app.get("/admin_logs")
 async def get_logs(user_id: int = Query(...)):
-    if not is_manage(user_id):
+    if user_id != DEV_ID:
         raise HTTPException(403, "Acesso restrito")
     try:
         res = supabase.table("admin_logs").select("*").order("timestamp", desc=True).execute()
@@ -137,6 +144,7 @@ async def get_logs(user_id: int = Query(...)):
     except Exception as e:
         raise HTTPException(500, f"Erro ao obter logs: {e}")
 
+# Painel dev: gerenciamento de admins
 @app.get("/dev/admins")
 async def list_admins_dev(user_id: int = Query(...)):
     if user_id != DEV_ID:
