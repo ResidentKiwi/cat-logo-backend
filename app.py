@@ -1,19 +1,25 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from dotenv import load_dotenv
 import os, time
 from supabase import create_client
 
-# Configuração Supabase
+# Carregar variáveis de ambiente do .env
+load_dotenv()
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-DEV_ID = 5185766186  
+DEV_ID = 5185766186  # ID do desenvolvedor master
 
+# Verificar se as variáveis foram carregadas corretamente
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("Variáveis SUPABASE_URL e SUPABASE_KEY devem estar definidas.")
 
+# Conectar com o Supabase
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# Inicializar FastAPI
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -23,13 +29,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Função helper
+# Helper para verificar se o usuário é admin
 def is_manage(user_id: int) -> bool:
     if user_id == DEV_ID:
         return True
     data = supabase.table("admins").select("id").eq("id", user_id).execute().data or []
     return len(data) > 0
 
+# Schemas
 class Canal(BaseModel):
     nome: str
     url: str
@@ -39,6 +46,8 @@ class Canal(BaseModel):
 
 class CanalUpdate(Canal):
     pass
+
+# Rotas
 
 @app.get("/admins")
 async def get_admins():
@@ -51,7 +60,7 @@ async def get_admins():
 @app.get("/canais")
 async def get_canais():
     try:
-        res = supabase.table("canais").select("*").execute()
+        res = supabase.table("canais").select("*").order("id", desc=True).execute()
         return res.data
     except Exception as e:
         raise HTTPException(500, f"Erro ao obter canais: {e}")
@@ -125,6 +134,8 @@ async def upload_imagem(file: UploadFile = File(...)):
         return {"url": pu.get("publicURL") or pu.get("publicUrl")}
     except Exception as e:
         raise HTTPException(500, f"Erro no upload da imagem: {e}")
+
+# Rotas de DEV para gerenciar admins e logs
 
 @app.get("/admin_logs")
 async def get_logs(user_id: int = Query(...)):
