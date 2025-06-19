@@ -7,7 +7,7 @@ from supabase import create_client
 # Configuração Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-DEV_ID = 5185766186  # Seu ID fixo como desenvolvedor
+DEV_ID = 5185766186  
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("Variáveis SUPABASE_URL e SUPABASE_KEY devem estar definidas.")
@@ -23,7 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Função helper: verifica se pode gerenciar (admin ou dev)
+# Função helper
 def is_manage(user_id: int) -> bool:
     if user_id == DEV_ID:
         return True
